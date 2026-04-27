@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Abarrotes - Escáner</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            padding: 15px; 
+            background-color: #2c2f33; 
+            color: white; 
+        }
+        #reader { 
+            width: 100%; 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            overflow: hidden;
+            color: black; 
+        }
+        #resultado { 
+            margin-top: 20px; 
+            padding: 20px; 
+            background: #23272a; 
+            border-radius: 8px; 
+            border: 1px solid #7289da; 
+            min-height: 100px;
+        }
+        .success { color: #43b581; font-size: 1.2em; font-weight: bold; }
+        .error { color: #f04747; font-weight: bold; }
+        .dato { color: #ffffff; font-weight: normal; }
+        
+    
+        .manual-box { 
+            margin: 20px auto; 
+            padding: 15px; 
+            background: #2c2f33; 
+            border: 1px solid #99aab5; 
+            border-radius: 8px; 
+            max-width: 400px; 
+        }
+        input[type="text"] { 
+            padding: 12px; 
+            width: 60%; 
+            border-radius: 4px; 
+            border: none; 
+            margin-bottom: 10px;
+        }
+        button { 
+            padding: 12px 20px; 
+            background-color: #7289da; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        button:hover { background-color: #5b6eae; }
+        h2 { color: #7289da; }
+    </style>
+</head>
+<body>
+    <h2>Lector de Abarrotes</h2>
+    
+    <div id="reader"></div>
+
+    <div class="manual-box">
+        <input type="text" id="codigoManual" placeholder="Ingresa código manual">
+        <button onclick="buscarManual()">Buscar</button>
+    </div>
+
+    <div id="resultado">Esperando lectura...</div>
+
+    <script>
+        
+        const API_URL = "/api/escaner/";
+
+        // 1. FUNCIÓN PARA CONSULTAR LA BASE DE DATOS
+        function buscarEnBaseDeDatos(codigo) {
+            const resultDiv = document.getElementById('resultado');
+            resultDiv.innerHTML = `Buscando código: <b>${codigo}</b>...`;
+
+            fetch(API_URL + codigo)
+                .then(response => response.json())
+                .then(data => {
+                    if(data.success) {
+                        resultDiv.innerHTML = `
+                            <div class="success">
+                                ✅ PRODUCTO ENCONTRADO<br><br>
+                                <span style="font-size: 0.9em; color: #99aab5;">Nombre:</span><br>
+                                <span class="dato">${data.data.NOMBRE}</span><br><br>
+                                <span style="font-size: 0.9em; color: #99aab5;">Precio:</span><br>
+                                <span class="dato">$${data.data.PRECIO}</span><br><br>
+                                <span style="font-size: 0.9em; color: #99aab5;">Stock en Tienda:</span><br>
+                                <span class="dato">${data.data.STOCK} unidades</span>
+                            </div>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `<span class="error">❌ El código ${codigo} no existe en el sistema.</span>`;
+                    }
+                })
+                .catch(err => {
+                    resultDiv.innerHTML = `<span class="error">⚠️ Error de conexión. Revisa que el servidor Node.js esté encendido.</span>`;
+                });
+        }
+
+        
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const codigoDesdeURL = urlParams.get('codigo');
+            
+            if (codigoDesdeURL) {
+                document.getElementById('codigoManual').value = codigoDesdeURL;
+                buscarEnBaseDeDatos(codigoDesdeURL);
+            }
+        };
+
+    
+        function buscarManual() {
+            const codigo = document.getElementById('codigoManual').value;
+            if (codigo.trim() !== "") {
+                buscarEnBaseDeDatos(codigo);
+            }
+        }
+
+        // 4. CONFIGURACIÓN DEL ESCÁNER DE CÁMARA (CORREGIDO PARA CORTAR LA URL)
+        function onScanSuccess(decodedText) {
+            // Extraer solo el código si el QR trae toda la URL de Ngrok
+            let codigoLimpio = decodedText;
+            if (decodedText.includes("?codigo=")) {
+                codigoLimpio = decodedText.split("?codigo=")[1];
+            }
+            
+            // Ponemos el número en la cajita manual para que se vea qué leyó
+            document.getElementById('codigoManual').value = codigoLimpio;
+            
+            // Buscamos el código limpio en la base de datos
+            buscarEnBaseDeDatos(codigoLimpio);
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 15, qrbox: {width: 250, height: 250} }, false);
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>
